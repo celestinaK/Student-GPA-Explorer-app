@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Student GPA Explorer – Predictor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; background: #f0fafa; color: #0d1b2a; }
+  header { background: #0f6b6b; padding: 20px 32px; }
+  header h1 { color: #fff; font-size: 24px; font-weight: 700; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+  .predictor-card { background: #fff; border-radius: 12px; padding: 28px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+  .predictor-card h2 { font-size: 18px; color: #0f6b6b; margin-bottom: 20px; font-weight: 700; }
+  .inputs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px; }
+  .input-group { display: flex; flex-direction: column; gap: 6px; }
+  .input-group label { font-size: 13px; font-weight: 600; color: #085041; }
+  .input-group input, .input-group select { padding: 9px 12px; border: 1px solid #9fe1cb; border-radius: 7px; font-size: 14px; background: #f0fafa; outline: none; }
+  .predict-btn { background: #0f6b6b; color: #fff; border: none; padding: 12px 32px; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; }
+  .predict-btn:hover { background: #085041; }
+  .result-box { margin-top: 20px; padding: 20px 24px; border-radius: 10px; display: none; }
+  .result-box.green  { background: #eaf3de; border-left: 5px solid #3b6d11; }
+  .result-box.orange { background: #faeeda; border-left: 5px solid #854f0b; }
+  .result-box.red    { background: #fcebeb; border-left: 5px solid #a32d2d; }
+  .result-gpa { font-size: 28px; font-weight: 700; margin-bottom: 12px; }
+  .result-box.green  .result-gpa { color: #3b6d11; }
+  .result-box.orange .result-gpa { color: #854f0b; }
+  .result-box.red    .result-gpa { color: #a32d2d; }
+  .tips { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .tip { font-size: 13px; padding: 8px 12px; background: rgba(255,255,255,0.7); border-radius: 6px; }
+  .chart-card { background: #fff; border-radius: 10px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+  .chart-card h2 { font-size: 16px; color: #0f6b6b; margin-bottom: 14px; }
+  .legend { display: flex; gap: 20px; font-size: 12px; margin-top: 10px; }
+  .dot { width:12px;height:12px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:middle; }
+  table { width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06); }
+  thead tr { background:#0f6b6b;color:#fff; }
+  th,td { padding:11px 16px;text-align:left;font-size:13px; }
+  td { border-bottom:1px solid #e1f5ee; }
+  tr:nth-child(even) td { background:#f0fafa; }
+  .gpa-cell { font-weight:700;color:#0f6b6b; }
+  footer { text-align:center;padding:20px;font-size:12px;color:#5f5e5a; }
+</style>
+</head>
+<body>
+<header><h1>Student GPA Explorer</h1></header>
+<div class="container">
+
+  <div class="predictor-card">
+    <h2>Predict Your GPA</h2>
+    <div class="inputs-grid">
+      <div class="input-group">
+        <label>Study Hours Per Week (0–40)</label>
+        <input type="number" id="p_hours" min="0" max="40" value="15" placeholder="e.g. 15">
+      </div>
+      <div class="input-group">
+        <label>Attendance Rate % (0–100)</label>
+        <input type="number" id="p_att" min="0" max="100" value="80" placeholder="e.g. 80">
+      </div>
+      <div class="input-group">
+        <label>Previous GPA (0.0–4.0)</label>
+        <input type="number" id="p_prev" min="0" max="4" step="0.1" value="3.0" placeholder="e.g. 3.0">
+      </div>
+      <div class="input-group">
+        <label>Extracurricular Activities</label>
+        <select id="p_act"><option value="Yes">Yes</option><option value="No">No</option></select>
+      </div>
+    </div>
+    <button class="predict-btn" onclick="predict()">Predict My GPA</button>
+    <div class="result-box" id="resultBox">
+      <div class="result-gpa" id="resultGpa"></div>
+      <div class="tips" id="tipsList"></div>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <h2>Study Hours vs. College GPA</h2>
+    <canvas id="scatterChart" height="90"></canvas>
+    <div class="legend">
+      <span><span class="dot" style="background:#1d9e75;"></span>With activities</span>
+      <span><span class="dot" style="background:#d85a30;"></span>Without activities</span>
+    </div>
+  </div>
+
+  <table>
+    <thead><tr><th>Study Hrs/Week</th><th>Attendance (%)</th><th>Prev GPA</th><th>Activities</th><th>College GPA</th></tr></thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+</div>
+<footer>Data source: College GPA Prediction Dataset, Kaggle (Peter Mushemi). Predictions are estimates only -- not academic advice.</footer>
+<script>
+const all = [
+  [8,62,2.1,"No",2.0],[12,75,2.5,"Yes",2.6],[20,85,3.0,"No",3.1],
+  [25,90,3.5,"Yes",3.7],[5,55,1.8,"No",1.9],[18,80,2.8,"Yes",2.9],
+  [30,95,3.8,"No",3.9],[15,78,2.7,"No",2.8],[22,88,3.2,"Yes",3.4],
+  [10,70,2.3,"Yes",2.4],[28,92,3.6,"No",3.6],[6,60,2.0,"No",2.0],
+  [17,82,2.9,"Yes",3.0],[24,87,3.3,"No",3.3],[9,65,2.2,"No",2.1],
+  [35,97,3.9,"Yes",4.0],[14,76,2.6,"Yes",2.7],[19,84,3.1,"No",3.2],
+  [11,72,2.4,"No",2.3],[27,91,3.7,"Yes",3.8]
+];
+
+function predict() {
+  const h = parseFloat(document.getElementById("p_hours").value) || 0;
+  const a = parseFloat(document.getElementById("p_att").value)   || 0;
+  const p = parseFloat(document.getElementById("p_prev").value)  || 0;
+  const act = document.getElementById("p_act").value;
+  let raw = (h/40*1.5) + (a/100*1.0) + (p*1.2) + (act==="Yes" ? 0.1 : 0);
+  let gpa = Math.min(4.0, (raw/3.8)*4.0).toFixed(2);
+  const box = document.getElementById("resultBox");
+  box.className = "result-box " + (gpa>=3.0 ? "green" : gpa>=2.0 ? "orange" : "red");
+  box.style.display = "block";
+  document.getElementById("resultGpa").textContent = `Your Estimated GPA: ${gpa} out of 4.0`;
+  const tips = [];
+  if (h < 10) tips.push("Tip: Students in the dataset who studied 15+ hours/week averaged a GPA 0.6 points higher.");
+  if (a < 70) tips.push("Tip: Attendance below 75% strongly correlates with lower GPA in this dataset.");
+  if (p < 2.5) tips.push("Tip: Students who improved attendance by 10% saw meaningful GPA gains the following semester.");
+  if (tips.length === 0) tips.push("Tip: Great habits! Keep studying consistently and maintaining strong attendance.");
+  document.getElementById("tipsList").innerHTML = tips.map(t=>`<div class="tip">${t}</div>`).join("");
+}
+
+const ctx = document.getElementById("scatterChart").getContext("2d");
+const chart = new Chart(ctx, {
+  type:"scatter",
+  data:{datasets:[
+    {label:"With Activities",data:all.filter(s=>s[3]==="Yes").map(s=>({x:s[0],y:s[4],att:s[1],act:s[3]})),backgroundColor:"#1d9e75",pointRadius:7},
+    {label:"No Activities",  data:all.filter(s=>s[3]==="No" ).map(s=>({x:s[0],y:s[4],att:s[1],act:s[3]})),backgroundColor:"#d85a30",pointRadius:7}
+  ]},
+  options:{
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>[`Study: ${c.raw.x} hrs`,`Attend: ${c.raw.att}%`,`Activities: ${c.raw.act}`,`GPA: ${c.raw.y}`]}}},
+    scales:{x:{title:{display:true,text:"Study Hours/Week",color:"#0f6b6b"},min:0,max:40},y:{title:{display:true,text:"College GPA (0-4)",color:"#0f6b6b"},min:0,max:4.5}}
+  }
+});
+
+const tbody = document.getElementById("tableBody");
+all.forEach(s=>{
+  const tr=document.createElement("tr");
+  tr.innerHTML=`<td>${s[0]}</td><td>${s[1]}%</td><td>${s[2].toFixed(1)}</td><td>${s[3]}</td><td class="gpa-cell">${s[4].toFixed(1)}</td>`;
+  tbody.appendChild(tr);
+});
+</script>
+</body>
+</html>
